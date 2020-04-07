@@ -69,8 +69,8 @@ def measure_trajectory_similarity(ref_trajectory, measure_trajectory):
 
 class Network(object):
 
-    def __init__(self, N=50, tau=10, g=0.5, pc=0.2, i_noise=1.0e-3, q=1.0):
-        self.rng = np.random.RandomState(4223)
+    def __init__(self, N=50, tau=10, g=0.5, pc=0.2, i_noise=1.0e-3, q=1.0, seed=4223):
+        self.rng = np.random.RandomState(seed)
 
         # network parameters
         # default parameters give oscillatory dynamics in absence of external input
@@ -139,7 +139,85 @@ class Network(object):
 
         return time_steps, rates
 
-    def simulate_learn_network(self, out_func, external_input=None, x0=None, T=2000.0, dt=None):
+    def simulate_learn_network(self, out_func, external_input=None, x0=None, T=2000.0):
+        """
+        main function to run recurrent network simulations and use the FORCE algorithm
+        to update recurrent and output weights.
+        Simple implementation for fully recurrent networks from Sussillo & Abbott 2009
+        :param out_func: callable, output function to be learned
+        :param external_input: callable, accepts simulation time t as input
+        and returns array of external input to each neuron
+        :param x0: array of initial values for each neuron (length self.N)
+        :param T: learning duration
+        :return: solution
+        """
+        if external_input is None:
+            def external_input(t):
+                return np.zeros(self.N)
+        if x0 is None:
+            x0 = np.tanh(self.rng.randn(self.N))
+
+        dot = np.dot
+        alpha = 1.0e-0
+        nsecs = T # default: 1440
+        dt = 0.1
+        learn_every = 2
+        time_steps = np.arange(0.0, nsecs, dt)
+
+        wo_length = []
+        z_steps = []
+        out_steps = []
+
+        wo = np.zeros(self.N)
+        x = x0
+        step = 0
+        P = 1.0 / alpha * np.diag(np.ones(self.N))
+
+        print('Starting simultaneous simulation and weight updates...')
+        for t_step in time_steps:
+            print('\rTime = %f' % t_step, end='', flush=True)
+            step += 1
+            # take Euler step
+            dxdt = self._network_dynamics(t_step, x, external_input)
+            x += dxdt * dt
+            r = np.tanh(x)
+            z = dot(wo, r)
+
+            if step % learn_every == 0:
+                # update inv. correlation matrix
+                k = dot(P, r)
+                rPr = dot(r, k)
+                c = 1.0 / (1.0 + rPr)
+                P -= c * np.outer(k, k)
+
+                # update error, output and recurrent weights
+                e = z - out_func(t_step)
+                dw = -c * e * k # why c???
+                wo += dw
+                self.Wrec += dw.transpose()
+
+            z_steps.append(z)
+            out_steps.append(out_func(t_step))
+            wo_length.append(np.sqrt(dot(wo, wo)))
+
+        print('')
+        print('Done!')
+        z_steps = np.array(z_steps)
+        out_steps = np.array(out_steps)
+        diff = z_steps - out_steps
+        fig = plt.figure(1)
+        ax1 = fig.add_subplot(2, 1, 1)
+        ax1.semilogy(time_steps, np.sqrt(diff * diff), 'k-', linewidth=0.5)
+        ax1.set_ylabel('Error')
+        ax2 = fig.add_subplot(2, 1, 2, sharex=ax1)
+        ax2.plot(time_steps, wo_length, 'k-', linewidth=0.5)
+        ax2.set_ylabel('|wo|')
+        ax2.set_xlabel('Time (ms)')
+        plt.show()
+
+        return wo, self.Wrec
+
+    def simulate_learn_network_two_outputs(self, out_func, external_input=None, x0=None, T=2000.0, dt=None):
         """
         main function to run recurrent network simulations and use the FORCE algorithm
         to update recurrent and output weights.
@@ -216,7 +294,7 @@ class Network(object):
         fig = plt.figure(1)
         ax1 = fig.add_subplot(2, 1, 1)
         ax1.plot(time_steps, np.sqrt(diff), 'k-', linewidth=0.5)
-        ax1.set_ylabel('RMSE')
+        ax1.set_ylabel('Error')
         ax2 = fig.add_subplot(2, 1, 2, sharex=ax1)
         ax2.plot(time_steps, wo_length, 'k-', linewidth=0.5)
         ax2.set_ylabel('|wo|')
