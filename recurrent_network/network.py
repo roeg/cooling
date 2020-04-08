@@ -168,7 +168,7 @@ class Network(object):
         z_steps = []
         out_steps = []
 
-        wo = np.zeros(self.N)
+        wo = self.rng.randn(self.N)
         x = x0
         step = 0
         P = 1.0 / alpha * np.diag(np.ones(self.N))

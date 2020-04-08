@@ -67,7 +67,6 @@ def manipulate_network():
     computes correlation between neural trajectories as a similarity measure
     :return: nothing
     """
-
     # load output weights
     out_dir = '/Users/robert/project_src/cooling/single_cpg_manipulation'
     # weight_suffix1 = 'outunit1_weights.npy'

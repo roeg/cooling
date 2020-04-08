@@ -2,6 +2,7 @@ import os.path
 import numpy as np
 import matplotlib.pyplot as plt
 import recurrent_network.network as rn
+from scipy.signal import resample_poly
 
 
 def _tau_q10(tau, dtemp):
@@ -129,5 +130,96 @@ def cool_single_cpg():
     plt.show()
 
 
+def cool_distributed_cpgs():
+    """
+    main function to manipulate neurons/synapses in distributed recurrent networks
+    loads previously fitted output weights
+    computes correlation between neural trajectories as a similarity measure
+    :return: nothing
+    """
+    # load output weights
+    out_dir = '/Users/robert/project_src/cooling/single_cpg_manipulation'
+    weight_suffix1 = 'outunit1_parallel_weights_force.npy'
+    weight_suffix2 = 'outunit2_parallel_weights_force.npy'
+    weight_suffix3 = 'Wrec1_parallel_weights_force.npy'
+    weight_suffix4 = 'Wrec2_parallel_weights_force.npy'
+    Wout1 = np.load(os.path.join(out_dir, weight_suffix1))
+    Wout2 = np.load(os.path.join(out_dir, weight_suffix2))
+    Wrec1 = np.load(os.path.join(out_dir, weight_suffix3))
+    Wrec2 = np.load(os.path.join(out_dir, weight_suffix4))
+
+    # create network with same parameters
+    t_max = 2000.0
+    dt = 1.0
+    nw1 = rn.Network(N=800, g=1.5, pc=1.0)
+    nw1.Wrec = Wrec1
+    nw2 = rn.Network(N=800, g=1.5, pc=1.0, seed=5432)
+    nw2.Wrec = Wrec2
+    def ext_inp(t):
+        return np.zeros(nw1.N)
+
+    # run dynamics at reference temperature and compute neural/behavioral trajectory
+    ref_t1, ref_rates1 = nw1.simulate_network(T=t_max, dt=dt, external_input=ext_inp)
+    ref_t2, ref_rates2 = nw2.simulate_network(T=t_max, dt=dt, external_input=ext_inp)
+    neuron_out1 = np.dot(Wout1, ref_rates1)
+    neuron_out2 = np.dot(Wout2, ref_rates2)
+    ref_behavior = np.array([neuron_out1, neuron_out2])
+
+    fig1 = plt.figure(1)
+    ax1 = fig1.add_subplot(1, 1, 1)
+    ax1.plot(neuron_out1, neuron_out2, 'k', linewidth=0.5, label='ref')
+
+    # run dynamics at different temperatures using some Q10 for tau
+    # and compute neural/behavioral trajectories
+    dT_steps = [-0.2, -0.5, -1.0, -1.5, -2.0, -2.5, -3.0, -3.5, -4.0, -4.5, -5.0]
+    # dT_steps = [-1.0, -3.0, -5.0]
+    # dT_steps = [-0.5, -1.0, -2.0]
+    cooled_behaviors = []
+    for i, dT in enumerate(dT_steps):
+        cooled_q = _q(dT)
+        # cooled_nw = rn.Network(N=800, g=1.5, pc=1.0, q=cooled_q, seed=5432)
+        # cooled_nw.Wrec = Wrec2
+        cooled_nw = rn.Network(N=800, g=1.5, pc=1.0, q=cooled_q)
+        cooled_nw.Wrec = Wrec1
+        cooled_t, cooled_rates = cooled_nw.simulate_network(T=t_max/cooled_q, dt=dt, external_input=ext_inp)
+
+        # cooled_behavior = np.dot(Wout2, cooled_rates)
+        # target_length = len(ref_behavior[0])
+        # original_length = len(cooled_behavior)
+        # cooled_behavior_resampled = resample_poly(cooled_behavior, target_length, original_length)
+        # cooled_behaviors.append(np.array([ref_behavior[0], cooled_behavior_resampled]))
+        #
+        # label_str = 'dT = %.1f' % dT
+        # ax1.plot(ref_behavior[0], cooled_behavior_resampled, linewidth=0.5, label=label_str)
+
+        cooled_behavior = np.dot(Wout1, cooled_rates)
+        target_length = len(ref_behavior[1])
+        original_length = len(cooled_behavior)
+        cooled_behavior_resampled = resample_poly(cooled_behavior, target_length, original_length)
+        cooled_behaviors.append(np.array([cooled_behavior_resampled, ref_behavior[1]]))
+
+        label_str = 'dT = %.1f' % dT
+        ax1.plot(cooled_behavior_resampled, ref_behavior[1], linewidth=0.5, label=label_str)
+
+    ax1.legend()
+    ax1.set_xlabel('Output (a.u.)')
+
+    # measure similarity of neural/behavioral trajectories as a function of temperature
+    behavior_similarities = []
+    for i in range(len(dT_steps)):
+        similarity = rn.measure_trajectory_similarity(ref_behavior, cooled_behaviors[i])
+        behavior_similarities.append(similarity)
+    fig2 = plt.figure(2)
+    ax2 = fig2.add_subplot(1, 1, 1)
+    ax2.plot(dT_steps, behavior_similarities, 'ro-', label='behavior')
+    ax2.set_xlim(ax2.get_xlim()[::-1])
+    ax2.set_xlabel('Temperature change')
+    ax2.set_ylabel('Corr. coeff.')
+    ax2.legend()
+
+    plt.show()
+
+
 if __name__ == '__main__':
-    cool_single_cpg()
+    # cool_single_cpg()
+    cool_distributed_cpgs()
