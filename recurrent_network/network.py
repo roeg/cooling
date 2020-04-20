@@ -90,6 +90,7 @@ class Network(object):
         self.Wrec = Wtmp * keep_synapses
         # self.Win = self.rng.randn(N) * g / np.sqrt(pc * N)
         self.Win = self.rng.randn(N)
+        self.ext_inp = None
 
     def _network_dynamics(self, t, x, ext_inp):
         """
@@ -116,9 +117,11 @@ class Network(object):
         :return: solution
         """
 
-        if external_input is None:
+        if external_input is None and self.ext_inp is None:
             def external_input(t):
                 return np.zeros(self.N)
+        elif external_input is None and self.ext_inp is not None:
+            external_input = self.ext_inp
         if x0 is None:
             x0 = np.tanh(self.rng.randn(self.N))
 
@@ -168,7 +171,7 @@ class Network(object):
         z_steps = []
         out_steps = []
 
-        wo = self.rng.randn(self.N)
+        wo = np.zeros(self.N)
         x = x0
         step = 0
         P = 1.0 / alpha * np.diag(np.ones(self.N))
@@ -210,7 +213,7 @@ class Network(object):
         ax1.semilogy(time_steps, np.sqrt(diff * diff), 'k-', linewidth=0.5)
         ax1.set_ylabel('Error')
         ax2 = fig.add_subplot(2, 1, 2, sharex=ax1)
-        ax2.plot(time_steps, wo_length, 'k-', linewidth=0.5)
+        ax2.semilogy(time_steps, wo_length, 'k-', linewidth=0.5)
         ax2.set_ylabel('|wo|')
         ax2.set_xlabel('Time (ms)')
         plt.show()
@@ -293,10 +296,10 @@ class Network(object):
         diff = diff_[:, 0] * diff_[:, 0] + diff_[:, 1] * diff_[:, 1]
         fig = plt.figure(1)
         ax1 = fig.add_subplot(2, 1, 1)
-        ax1.plot(time_steps, np.sqrt(diff), 'k-', linewidth=0.5)
+        ax1.semilogy(time_steps, np.sqrt(diff), 'k-', linewidth=0.5)
         ax1.set_ylabel('Error')
         ax2 = fig.add_subplot(2, 1, 2, sharex=ax1)
-        ax2.plot(time_steps, wo_length, 'k-', linewidth=0.5)
+        ax2.semilogy(time_steps, wo_length, 'k-', linewidth=0.5)
         ax2.set_ylabel('|wo|')
         ax2.set_xlabel('Time (ms)')
         plt.show()
