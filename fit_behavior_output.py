@@ -11,21 +11,41 @@ def run_output_fit_force():
     using FORCE algorithm
     :return: nothing
     """
-    t_max = 4000.0
+    t_max = 2000.0
     dt = 0.1
     nw = rn.Network(N=800, g=1.5, pc=1.0)
 
     # def ext_inp(t):
     #     return np.zeros(nw.N)
 
+    # figure 8
     def behavior(t):
-        w = 2 * np.pi / 200.0 # chaotic dynamics
+        w = 2 * np.pi / 500.0 # chaotic dynamics
         phi = np.pi / 100.0
         target_neuron1 = 0.5*np.sin(w * t + phi)
-        target_neuron2 = 0.5*np.sin(2 * w * t + phi)
+        target_neuron2 = 0.5*np.sin(5 * w * t + phi)
         # target_neuron2 = 0.5*np.cos(w * t + phi)
         return target_neuron1, target_neuron2
 
+    # # two time scales - fast oscillations and slowly varying envelope - needs ~ 2000 neurons
+    # def behavior(t):
+    #     w1 = 2 * np.pi / 200.0 # fast
+    #     w2 = 2 * np.pi / 2000.0 # slow
+    #     offset = 1000.0
+    #     amp = 0.6
+    #     base = 0.2
+    #     # return base + amp * np.sin(w * t) * np.exp(-(t - offset)**2 / (2 * s**2))
+    #     return base + amp * np.sin(w1 * t) * np.sin(w2 * t)
+
+    # # original FORCE paper output: sum of 4 sine waves
+    # def behavior(t):
+    #     w = 2 * np.pi / 120.0
+    #     amp = 0.5
+    #     f = amp * (np.sin(w * t) + 1 / 2.0 * np.sin(2.0 * w * t) +
+    #         1 / 6.0 * np.sin(3.0 * w * t) + 1 / 3.0 * np.sin(4.0 * w * t))
+    #     return f
+
+    # two outputs
     force_result = nw.simulate_learn_network_two_outputs(behavior, T=t_max)
     Wout1, Wout2, Wrec_new = force_result
 
@@ -35,11 +55,15 @@ def run_output_fit_force():
 
     neuron_out1 = np.dot(Wout1, rates)
     neuron_out2 = np.dot(Wout2, rates)
+    out_behavior = neuron_out1 * neuron_out2 # make 1D behavior with 2 timescales
     target_neuron1, target_neuron2 = behavior(t)
+    target_behavior = target_neuron1 * target_neuron2
     fig2 = plt.figure(2)
     ax2 = fig2.add_subplot(1, 1, 1)
-    ax2.plot(neuron_out1, neuron_out2, 'r-', linewidth=1, label='learned')
-    ax2.plot(target_neuron1, target_neuron2, 'k--', linewidth=0.5, label='target')
+    # ax2.plot(neuron_out1, neuron_out2, 'r-', linewidth=1, label='learned')
+    # ax2.plot(target_neuron1, target_neuron2, 'k--', linewidth=0.5, label='target')
+    ax2.plot(t, out_behavior, 'r-', linewidth=1, label='learned')
+    ax2.plot(t, target_behavior, 'k--', linewidth=0.5, label='target')
     ax2.legend()
     ax2.set_xlabel('Output 1 activity')
     ax2.set_ylabel('Output 2 activity')
@@ -47,13 +71,39 @@ def run_output_fit_force():
 
     plt.show()
 
-    out_dir = '/Users/robert/project_src/cooling/single_cpg_manipulation'
-    out_suffix1 = 'outunit1_weights_force.npy'
-    out_suffix2 = 'outunit2_weights_force.npy'
-    out_suffix3 = 'Wrec_weights_force.npy'
+    out_dir = '/Users/robert/project_src/cooling/single_cpg_manipulation/weights'
+    out_suffix1 = 'outunit1_weights_force_w500_5w.npy'
+    out_suffix2 = 'outunit2_weights_force_w500_5w.npy'
+    out_suffix3 = 'Wrec_weights_force_w500_5w.npy'
     np.save(os.path.join(out_dir, out_suffix1), Wout1)
     np.save(os.path.join(out_dir, out_suffix2), Wout2)
     np.save(os.path.join(out_dir, out_suffix3), Wrec_new)
+
+    # # one output, two time scales
+    # force_result = nw.simulate_learn_network(behavior, T=t_max)
+    # Wout, Wrec_new = force_result
+    #
+    # nw_test = rn.Network(N=1000, g=1.5, pc=1.0)
+    # nw_test.Wrec = Wrec_new
+    # t, rates = nw_test.simulate_network(T=t_max, dt=dt)
+    #
+    # neuron_out = np.dot(Wout, rates)
+    # target_neuron = behavior(t)
+    # fig2 = plt.figure(2)
+    # ax2 = fig2.add_subplot(1, 1, 1)
+    # ax2.plot(t, neuron_out, 'r-', linewidth=1, label='learned')
+    # ax2.plot(t, target_neuron, 'k--', linewidth=0.5, label='target')
+    # ax2.legend()
+    # ax2.set_xlabel('Time (ms)')
+    # ax2.set_ylabel('Output activity (a.u.)')
+    #
+    # plt.show()
+    #
+    # out_dir = '/Users/robert/project_src/cooling/single_cpg_manipulation'
+    # out_suffix1 = 'outunit_weights_twotimescales_force.npy'
+    # out_suffix2 = 'Wrec_weights_twotimescales_force.npy'
+    # np.save(os.path.join(out_dir, out_suffix1), Wout)
+    # np.save(os.path.join(out_dir, out_suffix2), Wrec_new)
 
 
 def run_output_fit_force_parallel_networks():
@@ -186,5 +236,5 @@ def run_output_fit():
 
 if __name__ == '__main__':
     # run_output_fit()
-    # run_output_fit_force()
-    run_output_fit_force_parallel_networks()
+    run_output_fit_force()
+    # run_output_fit_force_parallel_networks()

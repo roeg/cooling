@@ -24,12 +24,14 @@ def cool_single_cpg():
     """
 
     # load output weights
-    out_dir = '/Users/robert/project_src/cooling/single_cpg_manipulation'
+    out_dir = '/Users/robert/project_src/cooling/single_cpg_manipulation/weights'
     # weight_suffix1 = 'outunit1_weights.npy'
     # weight_suffix2 = 'outunit2_weights.npy'
     weight_suffix1 = 'outunit1_weights_force.npy'
     weight_suffix2 = 'outunit2_weights_force.npy'
     weight_suffix3 = 'Wrec_weights_force.npy'
+    # weight_suffix1 = 'outunit_weights_twotimescales_force.npy'
+    # weight_suffix2 = 'Wrec_weights_twotimescales_force.npy'
     # weight_suffix1 = 'outunit1_weights_circle.npy'
     # weight_suffix2 = 'outunit2_weights_circle.npy'
     Wout1 = np.load(os.path.join(out_dir, weight_suffix1))
@@ -41,6 +43,7 @@ def cool_single_cpg():
     dt = 1.0
     # nw = rn.Network(N=800, g=1.5, pc=0.1)
     nw = rn.Network(N=800, g=1.5, pc=1.0)
+    # nw = rn.Network(N=1000, g=1.5, pc=1.0)
     nw.Wrec = Wrec
     # nw = Network(N=500, g=1.2, pc=0.5)
     # nw = rn.Network(N=50, g=0.5/np.sqrt(0.2), pc=1.0)
@@ -61,23 +64,27 @@ def cool_single_cpg():
     pcs, ref_trajectory = rn.compute_neural_trajectory(ref_rates)
     neuron_out1 = np.dot(Wout1, ref_rates)
     neuron_out2 = np.dot(Wout2, ref_rates)
-    ref_behavior = np.array([neuron_out1, neuron_out2])
+    ref_behavior = neuron_out1 * neuron_out2
+    # ref_behavior = np.array([neuron_out1, neuron_out2])
+    # ref_behavior = np.array(neuron_out)
 
     fig1 = plt.figure(1)
     ax1 = fig1.add_subplot(2, 1, 1)
     ax1.plot(ref_trajectory[0, :], ref_trajectory[1, :], 'k', linewidth=0.5, label='ref')
     ax2 = fig1.add_subplot(2, 1, 2)
-    ax2.plot(neuron_out1, neuron_out2, 'k', linewidth=0.5, label='ref')
+    # ax2.plot(neuron_out1, neuron_out2, 'k', linewidth=0.5, label='ref')
+    ax2.plot(ref_t, ref_behavior, 'k', linewidth=0.5, label='ref')
 
 
     # run dynamics at different temperatures using some Q10 for tau
     # and compute neural/behavioral trajectories
     dT_steps = [-0.2, -0.5, -1.0, -1.5, -2.0, -2.5, -3.0, -3.5, -4.0, -4.5, -5.0]
     # dT_steps = [-1.0, -3.0, -5.0]
+    # dT_steps = [-5.0, -10.0, -20.0]
     # dT_steps = [-0.5, -1.0, -2.0]
     fig2 = plt.figure(2)
     ax3 = fig2.add_subplot(len(dT_steps) + 1, 1, 1)
-    for i in range(1):
+    for i in range(10):
         ax3.plot(ref_t, ref_rates[i, :], linewidth=0.5)
     cooled_trajectories = []
     cooled_behaviors = []
@@ -87,21 +94,25 @@ def cool_single_cpg():
         cooled_q = _q(dT)
         # cooled_nw = rn.Network(N=800, g=1.5, pc=0.1, q=cooled_q)
         cooled_nw = rn.Network(N=800, g=1.5, pc=1.0, q=cooled_q)
+        # cooled_nw = rn.Network(N=1000, g=1.5, pc=1.0, q=cooled_q)
         cooled_nw.Wrec = Wrec
         # cooled_nw = Network(N=500, g=1.2, pc=0.5, q=cooled_q)
         # cooled_nw = rn.Network(N=50, g=0.5/np.sqrt(0.2), pc=1.0, q=cooled_q)
         cooled_t, cooled_rates = cooled_nw.simulate_network(T=t_max/cooled_q, dt=dt, external_input=ext_inp)
 
-        behavior = np.array([np.dot(Wout1, cooled_rates), np.dot(Wout2, cooled_rates)])
+        # behavior = np.array([np.dot(Wout1, cooled_rates), np.dot(Wout2, cooled_rates)])
+        behavior = np.dot(Wout1, cooled_rates) * np.dot(Wout2, cooled_rates)
+        # behavior = np.array(np.dot(Wout, cooled_rates))
         cooled_behaviors.append(behavior)
         projected_rates = rn.project_neural_trajectory(cooled_rates, ref_mean, pcs)
         cooled_trajectories.append(projected_rates)
 
         label_str = 'dT = %.1f' % dT
         ax1.plot(projected_rates[0, :], projected_rates[1, :], linewidth=0.5, label=label_str)
-        ax2.plot(behavior[0], behavior[1], linewidth=0.5, label=label_str)
+        # ax2.plot(behavior[0], behavior[1], linewidth=0.5, label=label_str)
+        ax2.plot(cooled_t, behavior, linewidth=0.5, label=label_str)
         ax3 = fig2.add_subplot(len(dT_steps) + 1, 1, 2 + i)
-        for j in range(1):
+        for j in range(10):
             ax3.plot(cooled_t, cooled_rates[j, :], linewidth=0.5)
 
     ax1.legend()
@@ -177,20 +188,9 @@ def cool_distributed_cpgs():
     cooled_behaviors = []
     for i, dT in enumerate(dT_steps):
         cooled_q = _q(dT)
-        # cooled_nw = rn.Network(N=800, g=1.5, pc=1.0, q=cooled_q, seed=5432)
-        # cooled_nw.Wrec = Wrec2
         cooled_nw = rn.Network(N=800, g=1.5, pc=1.0, q=cooled_q)
         cooled_nw.Wrec = Wrec1
         cooled_t, cooled_rates = cooled_nw.simulate_network(T=t_max/cooled_q, dt=dt, external_input=ext_inp)
-
-        # cooled_behavior = np.dot(Wout2, cooled_rates)
-        # target_length = len(ref_behavior[0])
-        # original_length = len(cooled_behavior)
-        # cooled_behavior_resampled = resample_poly(cooled_behavior, target_length, original_length)
-        # cooled_behaviors.append(np.array([ref_behavior[0], cooled_behavior_resampled]))
-        #
-        # label_str = 'dT = %.1f' % dT
-        # ax1.plot(ref_behavior[0], cooled_behavior_resampled, linewidth=0.5, label=label_str)
 
         cooled_behavior = np.dot(Wout1, cooled_rates)
         target_length = len(ref_behavior[1])
@@ -221,5 +221,5 @@ def cool_distributed_cpgs():
 
 
 if __name__ == '__main__':
-    # cool_single_cpg()
-    cool_distributed_cpgs()
+    cool_single_cpg()
+    # cool_distributed_cpgs()
