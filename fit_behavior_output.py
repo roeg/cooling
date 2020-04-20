@@ -106,6 +106,73 @@ def run_output_fit_force():
     # np.save(os.path.join(out_dir, out_suffix2), Wrec_new)
 
 
+def run_output_fit_force_hierarchy():
+    """
+    learn weights onto 2 output units to generate target output trajectory
+    using FORCE algorithm.
+    this time, we have external drive (sinusoid? ramp?) that can be controlled (i.e., cooled)
+    independently and should only affect one of the two timescales.
+    :return: nothing
+    """
+    t_max = 2000.0
+    dt = 0.1
+    nw = rn.Network(N=800, g=1.5, pc=1.0)
+
+    w_ext = 2 * np.pi / 200.0 # control slow timescale like this maybe?
+    amp_ext = 0.05
+    def ext_inp(t):
+        # w = 2 * np.pi / 200.0 # control slow timescale like this maybe?
+        return amp_ext * np.ones(nw.N) * np.sin(w_ext * t)
+
+    # figure 8
+    def behavior(t):
+        w = 2 * np.pi / 200.0 # chaotic dynamics
+        phi = np.pi / 100.0
+        target_neuron1 = 0.5*np.sin(w * t + phi)
+        target_neuron2 = 0.5*np.sin(2 * w * t + phi)
+        # target_neuron2 = 0.5*np.cos(w * t + phi)
+        return target_neuron1, target_neuron2
+
+    # two outputs
+    force_result = nw.simulate_learn_network_two_outputs(behavior, T=t_max, external_input=ext_inp)
+    Wout1, Wout2, Wrec_new = force_result
+
+    nw_test = rn.Network(N=800, g=1.5, pc=1.0)
+    nw_test.Wrec = Wrec_new
+    t, rates = nw_test.simulate_network(T=t_max, dt=dt, external_input=ext_inp)
+
+    neuron_out1 = np.dot(Wout1, rates)
+    neuron_out2 = np.dot(Wout2, rates)
+    out_behavior = neuron_out1 * neuron_out2 # make 1D behavior with 2 timescales
+    target_neuron1, target_neuron2 = behavior(t)
+    target_behavior = target_neuron1 * target_neuron2
+    fig2 = plt.figure(2)
+    ax1 = fig2.add_subplot(2, 1, 1)
+    ax1.set_xlabel('Time')
+    ax1.set_ylabel('Input activity')
+    ax1.set_title('Input')
+    ax1.plot(t, amp_ext * np.sin(w_ext * t), 'k-', linewidth=0.5)
+    ax2 = fig2.add_subplot(2, 1, 2, sharex=ax1)
+    # ax2.plot(neuron_out1, neuron_out2, 'r-', linewidth=1, label='learned')
+    # ax2.plot(target_neuron1, target_neuron2, 'k--', linewidth=0.5, label='target')
+    ax2.plot(t, out_behavior, 'r-', linewidth=1, label='learned')
+    ax2.plot(t, target_behavior, 'k--', linewidth=0.5, label='target')
+    ax2.legend()
+    ax2.set_xlabel('Time')
+    ax2.set_ylabel('Output activity')
+    ax2.set_title('Output')
+
+    plt.show()
+
+    out_dir = '/Users/robert/project_src/cooling/single_cpg_manipulation/weights'
+    out_suffix1 = 'outunit1_weights_force_w200_2w_input_w200.npy'
+    out_suffix2 = 'outunit2_weights_force_w200_2w_input_w200.npy'
+    out_suffix3 = 'Wrec_weights_force_w200_2w_input_w200.npy'
+    np.save(os.path.join(out_dir, out_suffix1), Wout1)
+    np.save(os.path.join(out_dir, out_suffix2), Wout2)
+    np.save(os.path.join(out_dir, out_suffix3), Wrec_new)
+
+
 def run_output_fit_force_parallel_networks():
     """
     learn weights from 2 recurrent networks onto 2 output units
@@ -236,5 +303,6 @@ def run_output_fit():
 
 if __name__ == '__main__':
     # run_output_fit()
-    run_output_fit_force()
+    # run_output_fit_force()
     # run_output_fit_force_parallel_networks()
+    run_output_fit_force_hierarchy()
