@@ -114,7 +114,9 @@ def run_output_fit_force_hierarchy():
     independently and should only affect one of the two timescales.
     :return: nothing
     """
-    t_max = 2000.0
+    # try the following: train network on two timescales of external input
+    # and see if cooling can interpolate between these
+    t_max = 4000.0
     dt = 0.1
     nw = rn.Network(N=800, g=1.5, pc=1.0)
 
@@ -122,14 +124,20 @@ def run_output_fit_force_hierarchy():
     amp_ext = 0.05
     def ext_inp(t):
         # w = 2 * np.pi / 200.0 # control slow timescale like this maybe?
-        return amp_ext * np.ones(nw.N) * np.sin(w_ext * t)
+        if t < 0.5 * t_max:
+            return amp_ext * np.ones(nw.N) * np.sin(w_ext * t)
+        else:
+            return amp_ext * np.ones(nw.N) * np.sin(0.5 * w_ext * t)
 
     # figure 8
     def behavior(t):
         w = 2 * np.pi / 200.0 # chaotic dynamics
         phi = np.pi / 100.0
-        target_neuron1 = 0.5*np.sin(w * t + phi)
-        target_neuron2 = 0.5*np.sin(2 * w * t + phi)
+        if t < 0.5 * t_max:
+            target_neuron1 = 0.5 * np.sin(w * t + phi)
+        else:
+            target_neuron1 = 0.5 * np.sin(0.5 * w * t + phi)
+        target_neuron2 = 0.5 * np.sin(2 * w * t + phi)
         # target_neuron2 = 0.5*np.cos(w * t + phi)
         return target_neuron1, target_neuron2
 
@@ -144,14 +152,30 @@ def run_output_fit_force_hierarchy():
     neuron_out1 = np.dot(Wout1, rates)
     neuron_out2 = np.dot(Wout2, rates)
     out_behavior = neuron_out1 * neuron_out2 # make 1D behavior with 2 timescales
-    target_neuron1, target_neuron2 = behavior(t)
-    target_behavior = target_neuron1 * target_neuron2
+    def plot_behavior(t):
+        w = 2 * np.pi / 200.0 # chaotic dynamics
+        phi = np.pi / 100.0
+        tmp1 = np.zeros(len(t))
+        t1 = t < 0.5 * t_max
+        t2 = t >= 0.5 * t_max
+        tmp1[t1] = 0.5 * np.sin(w * t[t1] + phi)
+        tmp1[t2] = 0.5 * np.sin(0.5 * w * t[t2] + phi)
+        tmp2 = 0.5 * np.sin(2 * w * t + phi)
+        return tmp1 * tmp2
+    target_behavior = plot_behavior(t)
     fig2 = plt.figure(2)
     ax1 = fig2.add_subplot(2, 1, 1)
     ax1.set_xlabel('Time')
     ax1.set_ylabel('Input activity')
     ax1.set_title('Input')
-    ax1.plot(t, amp_ext * np.sin(w_ext * t), 'k-', linewidth=0.5)
+    def plot_input(t):
+        out = np.zeros(len(t))
+        t1 = t < 0.5 * t_max
+        t2 = t >= 0.5 * t_max
+        out[t1] = amp_ext * np.sin(w_ext * t[t1])
+        out[t2] = amp_ext * np.sin(0.5 * w_ext * t[t2])
+        return out
+    ax1.plot(t, plot_input(t), 'k-', linewidth=0.5)
     ax2 = fig2.add_subplot(2, 1, 2, sharex=ax1)
     # ax2.plot(neuron_out1, neuron_out2, 'r-', linewidth=1, label='learned')
     # ax2.plot(target_neuron1, target_neuron2, 'k--', linewidth=0.5, label='target')

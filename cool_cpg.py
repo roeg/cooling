@@ -1,4 +1,5 @@
 import os.path
+from argparse import ArgumentParser
 import numpy as np
 import matplotlib.pyplot as plt
 import recurrent_network.network as rn
@@ -15,7 +16,7 @@ def _q(dtemp):
     return q10 ** (dtemp / 10.0)
 
 
-def cool_single_cpg():
+def cool_single_cpg(mode):
     """
     main function to cool single recurrent network
     loads previously fitted output weights
@@ -78,8 +79,10 @@ def cool_single_cpg():
 
     # run dynamics at different temperatures using some Q10 for tau
     # and compute neural/behavioral trajectories
-    dT_steps = [-0.2, -0.5, -1.0, -1.5, -2.0, -2.5, -3.0, -3.5, -4.0, -4.5, -5.0]
-    # dT_steps = [-1.0, -3.0, -5.0]
+    if mode == 'sweep':
+        dT_steps = [-0.2, -0.5, -1.0, -1.5, -2.0, -2.5, -3.0, -3.5, -4.0, -4.5, -5.0]
+    elif mode == 'vis':
+        dT_steps = [-1.0, -3.0, -5.0]
     # dT_steps = [-5.0, -10.0, -20.0]
     # dT_steps = [-0.5, -1.0, -2.0]
     fig2 = plt.figure(2)
@@ -141,7 +144,7 @@ def cool_single_cpg():
     plt.show()
 
 
-def cool_distributed_cpgs():
+def cool_distributed_cpgs(mode):
     """
     main function to manipulate neurons/synapses in distributed recurrent networks
     loads previously fitted output weights
@@ -182,8 +185,10 @@ def cool_distributed_cpgs():
 
     # run dynamics at different temperatures using some Q10 for tau
     # and compute neural/behavioral trajectories
-    dT_steps = [-0.2, -0.5, -1.0, -1.5, -2.0, -2.5, -3.0, -3.5, -4.0, -4.5, -5.0]
-    # dT_steps = [-1.0, -3.0, -5.0]
+    if mode == 'sweep':
+        dT_steps = [-0.2, -0.5, -1.0, -1.5, -2.0, -2.5, -3.0, -3.5, -4.0, -4.5, -5.0]
+    elif mode == 'vis':
+        dT_steps = [-1.0, -3.0, -5.0]
     # dT_steps = [-0.5, -1.0, -2.0]
     cooled_behaviors = []
     for i, dT in enumerate(dT_steps):
@@ -220,7 +225,7 @@ def cool_distributed_cpgs():
     plt.show()
 
 
-def cool_hierarchical_cpgs():
+def cool_hierarchical_cpgs(mode):
     """
     main function to cool single recurrent network with external top-down input.
     cool either external input or cpg itself.
@@ -269,8 +274,10 @@ def cool_hierarchical_cpgs():
 
     # run dynamics at different temperatures using some Q10 for tau
     # and compute neural/behavioral trajectories
-    # dT_steps = [-0.2, -0.5, -1.0, -1.5, -2.0, -2.5, -3.0, -3.5, -4.0, -4.5, -5.0]
-    dT_steps = [-1.0, -3.0, -5.0]
+    if mode == 'sweep':
+        dT_steps = [-0.2, -0.5, -1.0, -1.5, -2.0, -2.5, -3.0, -3.5, -4.0, -4.5, -5.0]
+    elif mode == 'vis':
+        dT_steps = [-1.0, -3.0, -5.0]
     # dT_steps = [-5.0, -10.0, -20.0]
     # dT_steps = [-0.5, -1.0, -2.0]
     fig2 = plt.figure(2)
@@ -330,6 +337,16 @@ def cool_hierarchical_cpgs():
 
 
 if __name__ == '__main__':
-    # cool_single_cpg()
-    # cool_distributed_cpgs()
-    cool_hierarchical_cpgs()
+    parser = ArgumentParser()
+    parser.add_argument('--circuit', required=True, choices=('cpg', 'distributed', 'hierarchy'),
+                        help='one of cpg, distributed or hierarchy')
+    parser.add_argument('--mode', required=True, choices=('vis', 'sweep'),
+                        help='vis: small parameter set for figures; sweep: large parameter set for graph')
+
+    args = parser.parse_args()
+    if args.circuit == 'cpg':
+        cool_single_cpg(args.mode)
+    if args.circuit == 'distributed':
+        cool_distributed_cpgs(args.mode)
+    if args.circuit == 'hierarchy':
+        cool_hierarchical_cpgs(args.mode)

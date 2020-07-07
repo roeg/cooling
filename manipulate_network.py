@@ -1,4 +1,5 @@
 import os.path
+from argparse import ArgumentParser
 import numpy as np
 import matplotlib.pyplot as plt
 import recurrent_network.network as rn
@@ -75,7 +76,7 @@ def _remove_synapses(network, fraction):
     network.Wrec[remove_synapses] = 0.0
 
 
-def manipulate_network():
+def manipulate_network(manipulation, mode):
     """
     main function to manipulate neurons/synapses in single recurrent network
     loads previously fitted output weights
@@ -134,37 +135,23 @@ def manipulate_network():
     # ax2.plot(neuron_out1, neuron_out2, 'k', linewidth=0.5, label='ref')
     ax2.plot(ref_t, ref_behavior, 'k', linewidth=0.5, label='ref')
 
-    # run dynamics at different temperatures using some Q10 for tau
+    # run dynamics at different fractions of manipulated neurons
     # and compute neural/behavioral trajectories
-    # fractions = [0.001 * i for i in range(1, 6)]
-    # fractions = [2.e-2, 5.e-2, 1.e-1, 2.e-1, 5.e-1]
-    # fractions = [5.e-1]
-    # fractions = [2.e-4, 5.e-4, 1.e-3, 2.e-3, 5.e-3, 1.e-2, 2.e-2, 5.e-2]
-    # fractions = [5.e-4, 1.e-2, 2.e-2, 5.e-2, 1.e-1, 2.e-1]
-    # fractions = [1.e-5, 2.e-5, 5.e-5, 1.e-4, 2.e-4, 5.e-4, 1.e-3, 2.e-3, 5.e-3, 1.e-2, 2.e-2, 5.e-2]
-    # activation
-    # fractions = [5.e-3, 1.e-2, 2.e-2, 5.e-2, 8.e-2, 1.e-1, 1.5e-1, 2.e-1]
-    # fractions = [1.e-2, 5.e-2, 1.e-1]
-    # inactivation
-    # fractions = [1.e-3, 2.e-3, 5.e-3, 1.e-2, 2.e-2, 5.e-2, 8.e-2, 1.e-1, 1.5e-1, 2.e-1]
-    fractions = [2.e-3, 1.e-2, 5.e-2]
+    if manipulation == 'activation':
+        if mode == 'sweep':
+            fractions = [5.e-3, 1.e-2, 2.e-2, 5.e-2, 8.e-2, 1.e-1, 1.5e-1, 2.e-1]
+        elif mode == 'vis':
+            fractions = [1.e-2, 5.e-2, 1.e-1]
+    elif manipulation == 'inactivation':
+        if mode == 'sweep':
+            fractions = [1.e-3, 2.e-3, 5.e-3, 1.e-2, 2.e-2, 5.e-2, 8.e-2, 1.e-1, 1.5e-1, 2.e-1]
+        elif mode == 'vis':
+            fractions = [2.e-3, 1.e-2, 5.e-2]
 
     fig2 = plt.figure(2)
     ax3 = fig2.add_subplot(len(fractions) + 1, 1, 1)
     for i in range(10):
         ax3.plot(ref_t, ref_rates[i, :], linewidth=0.5)
-
-    # generic activation function
-    # def activation(t):
-    #     if 0.0 <= t <= 20.0:
-    #         return np.ones(800)
-    #     else:
-    #         return np.zeros(800)
-    # def activation(t, network):
-    #     drive = np.zeros(network.N)
-    #     if 0.0 <= t <= 100.0:
-    #         drive[network.activate_ids] = 1.0
-    #     return drive
 
     n_repetitions = 10 # simulate multiple synapse removals
     manipulated_trajectories = []
@@ -186,54 +173,47 @@ def manipulate_network():
             manipulated_nw.Wrec = np.copy(Wrec)
             # manipulated_nw = rn.Network(N=50, g=0.5/np.sqrt(0.2), pc=1.0)
 
-            # # activation
-            # nr_activate = int(manipulated_nw.N * fraction)
-            # activate_ids_ = rng.choice(range(manipulated_nw.N), nr_activate, replace=False)
-            # if 0 in activate_ids_:
-            #     zero_active.append(1)
-            # else:
-            #     zero_active.append(0)
-            # activate_ids = np.array([1 if i in activate_ids_ else 0 for i in range(manipulated_nw.N)], dtype=bool)
-            # # activate_ids = np.array([i % (j + 2) for i in range(manipulated_nw.N)], dtype=bool)
-            # manipulated_nw.Win = np.zeros(manipulated_nw.N)
-            # manipulated_nw.Win[activate_ids] = 0.016 * rng.rand()
-            # manipulated_nw.Win[~activate_ids] = 0.0
-            # manipulated_nw.activate_ids = activate_ids
-            #
-            # inputs.append(manipulated_nw.activate_ids)
-            # # manipulated_t, manipulated_rates = manipulated_nw.simulate_network(T=t_max, dt=dt,
-            # #                                                                    external_input=activation_func)
-            # # func = lambda t: activation(t, manipulated_nw)
-            # manipulated_t, manipulated_rates = manipulated_nw.simulate_network(T=t_max, dt=dt,
-            #                                                                    external_input=activation)
-            # fraction_rates[j, :, :] = manipulated_rates[:, :]
-            # behavior = np.dot(Wout1, manipulated_rates) * np.dot(Wout2, manipulated_rates)
+            if manipulation == 'activation':
+                nr_activate = int(manipulated_nw.N * fraction)
+                activate_ids_ = rng.choice(range(manipulated_nw.N), nr_activate, replace=False)
+                if 0 in activate_ids_:
+                    zero_active.append(1)
+                else:
+                    zero_active.append(0)
+                activate_ids = np.array([1 if i in activate_ids_ else 0 for i in range(manipulated_nw.N)], dtype=bool)
+                # activate_ids = np.array([i % (j + 2) for i in range(manipulated_nw.N)], dtype=bool)
+                manipulated_nw.Win = np.zeros(manipulated_nw.N)
+                manipulated_nw.Win[activate_ids] = 0.016 * rng.rand()
+                manipulated_nw.Win[~activate_ids] = 0.0
+                manipulated_nw.activate_ids = activate_ids
+
+                inputs.append(manipulated_nw.activate_ids)
+                # manipulated_t, manipulated_rates = manipulated_nw.simulate_network(T=t_max, dt=dt,
+                #                                                                    external_input=activation_func)
+                # func = lambda t: activation(t, manipulated_nw)
+                manipulated_t, manipulated_rates = manipulated_nw.simulate_network(T=t_max, dt=dt,
+                                                                                   external_input=activation)
+                fraction_rates[j, :, :] = manipulated_rates[:, :]
+                behavior = np.dot(Wout1, manipulated_rates) * np.dot(Wout2, manipulated_rates)
 
             # drives.append(activation)
 
-            # inactivation
-            # for visualization, run 600 ms of regular sim, then inactivate from that state
-            baseline = 600.0
-            default_nw = rn.Network(N=800, g=1.5, pc=1.0)
-            default_nw.Wrec = np.copy(Wrec)
-            default_t, default_rates = default_nw.simulate_network(T=baseline, dt=dt)
-            _remove_neurons(manipulated_nw, fraction)
-            new_x0 = np.arctanh(default_rates[:, -1])
-            manipulated_t_, manipulated_rates = manipulated_nw.simulate_network(T=t_max-baseline, dt=dt, x0=new_x0)
-            manipulated_t = np.arange(0.0, t_max, dt)
-            # stitch together our Frankenstein network output
-            fraction_rates[j, :, :len(default_t)] = default_rates[:, :]
-            fraction_rates[j, :, len(default_t):] = manipulated_rates[:, :]
-            behavior = np.dot(Wout1, fraction_rates[j, :, :]) * np.dot(Wout2, fraction_rates[j, :, :])
+            elif manipulation == 'inactivation':
+                # for visualization, run 600 ms of regular sim, then inactivate from that state
+                baseline = 600.0
+                default_nw = rn.Network(N=800, g=1.5, pc=1.0)
+                default_nw.Wrec = np.copy(Wrec)
+                default_t, default_rates = default_nw.simulate_network(T=baseline, dt=dt)
+                _remove_neurons(manipulated_nw, fraction)
+                new_x0 = np.arctanh(default_rates[:, -1])
+                manipulated_t_, manipulated_rates = manipulated_nw.simulate_network(T=t_max-baseline, dt=dt, x0=new_x0)
+                manipulated_t = np.arange(0.0, t_max, dt)
+                # stitch together our Frankenstein network output
+                fraction_rates[j, :, :len(default_t)] = default_rates[:, :]
+                fraction_rates[j, :, len(default_t):] = manipulated_rates[:, :]
+                behavior = np.dot(Wout1, fraction_rates[j, :, :]) * np.dot(Wout2, fraction_rates[j, :, :])
 
             networks.append(manipulated_nw)
-            # fraction_rates[j, :, :] = manipulated_rates[:, :]
-            # fraction_rates.append(manipulated_rates[:10, :])
-            # fraction_rates.append(manipulated_rates)
-
-            # behavior = np.array([np.dot(Wout1, manipulated_rates), np.dot(Wout2, manipulated_rates)])
-            # behavior = np.dot(Wout1, manipulated_rates) * np.dot(Wout2, manipulated_rates)
-            # behavior = np.array(np.dot(Wout, manipulated_rates))
             fraction_behaviors.append(behavior)
             projected_rates = rn.project_neural_trajectory(fraction_rates[j, :, :], ref_mean, pcs)
             fraction_trajectories.append(projected_rates)
@@ -249,7 +229,6 @@ def manipulate_network():
         ax3 = fig2.add_subplot(len(fractions) + 1, 1, 2 + i)
         for j in range(10):
             ax3.plot(manipulated_t, fraction_rates[plot_index, j, :], linewidth=0.5)
-        # plt.show()
 
     ax1.legend()
     ax2.legend()
@@ -283,4 +262,11 @@ def manipulate_network():
 
 
 if __name__ == '__main__':
-    manipulate_network()
+    parser = ArgumentParser()
+    parser.add_argument('--manipulation', required=True, choices=('activation', 'inactivation'),
+                        help='activate or inactivate neurons')
+    parser.add_argument('--mode', required=True, choices=('vis', 'sweep'),
+                        help='vis: small parameter set for figures; sweep: large parameter set for graph')
+
+    args = parser.parse_args()
+    manipulate_network(args.manipulation, args.mode)
