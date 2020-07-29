@@ -4,7 +4,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 import recurrent_network.network as rn
 
-rng = np.random.RandomState(1234)
+rng = np.random.RandomState(12345)
 
 
 def activation(t):
@@ -146,7 +146,7 @@ def manipulate_network(manipulation, mode):
         if mode == 'sweep':
             fractions = [1.e-3, 2.e-3, 5.e-3, 1.e-2, 2.e-2, 5.e-2, 8.e-2, 1.e-1, 1.5e-1, 2.e-1]
         elif mode == 'vis':
-            fractions = [2.e-3, 1.e-2, 5.e-2]
+            fractions = [2.e-3, 1.e-2, 5.e-2, 2.e-1]
 
     fig2 = plt.figure(2)
     ax3 = fig2.add_subplot(len(fractions) + 1, 1, 1)

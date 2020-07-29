@@ -1,11 +1,12 @@
 import os.path
+from argparse import ArgumentParser
 import numpy as np
 import matplotlib.pyplot as plt
 from scipy.linalg import lstsq
 import recurrent_network.network as rn
 
 
-def run_output_fit_force():
+def run_output_fit_force(save=False):
     """
     learn weights onto 2 output units to generate target output trajectory
     using FORCE algorithm
@@ -19,13 +20,34 @@ def run_output_fit_force():
     #     return np.zeros(nw.N)
 
     # figure 8
+    # def behavior(t):
+    #     w = 2 * np.pi / 500.0 # chaotic dynamics
+    #     phi = np.pi / 100.0
+    #     target_neuron1 = 0.5*np.sin(w * t + phi)
+    #     target_neuron2 = 0.5*np.sin(5 * w * t + phi)
+    #     # target_neuron2 = 0.5*np.cos(w * t + phi)
+    #     return target_neuron1, target_neuron2
+
+    # output for singing mouse toy model 1: ramp
     def behavior(t):
-        w = 2 * np.pi / 500.0 # chaotic dynamics
-        phi = np.pi / 100.0
-        target_neuron1 = 0.5*np.sin(w * t + phi)
-        target_neuron2 = 0.5*np.sin(5 * w * t + phi)
-        # target_neuron2 = 0.5*np.cos(w * t + phi)
-        return target_neuron1, target_neuron2
+        amp_start = 0.5
+        amp_stop = 0.5
+        t_end = 1000.0
+        w = 2 * np.pi / 500.0
+        # t_plateau = 0.0
+        # if t < t_plateau:
+        #     return amp_start
+        # return amp_start + (amp_stop - amp_start) * (t - t_plateau) / (t_end - t_plateau)
+        # return amp_start + (amp_stop - amp_start) * t / t_end
+        # return amp_stop + amp_start * np.exp(-1.0 * t / t_end) * np.sin(w * t)
+        return amp_stop + amp_start * np.sin(w * t)
+    # output for singing mouse toy model 2: step
+    # TODO: for training, need to expose to periodic steps, otherwise seems to learn last constant amplitude
+    # def behavior(t):
+    #     t_step = 1000.0
+    #     amp_start = 0.8
+    #     amp_stop = 0.2
+    #     return amp_start if t <= t_step else amp_stop
 
     # # two time scales - fast oscillations and slowly varying envelope - needs ~ 2000 neurons
     # def behavior(t):
@@ -46,67 +68,86 @@ def run_output_fit_force():
     #     return f
 
     # two outputs
-    force_result = nw.simulate_learn_network_two_outputs(behavior, T=t_max)
-    Wout1, Wout2, Wrec_new = force_result
+    # force_result = nw.simulate_learn_network_two_outputs(behavior, T=t_max)
+    # Wout1, Wout2, Wrec_new = force_result
+    #
+    # nw_test = rn.Network(N=800, g=1.5, pc=1.0)
+    # nw_test.Wrec = Wrec_new
+    # t, rates = nw_test.simulate_network(T=t_max, dt=dt)
+    #
+    # neuron_out1 = np.dot(Wout1, rates)
+    # neuron_out2 = np.dot(Wout2, rates)
+    # out_behavior = neuron_out1 * neuron_out2 # make 1D behavior with 2 timescales
+    # target_neuron1, target_neuron2 = behavior(t)
+    # target_behavior = target_neuron1 * target_neuron2
+    # fig2 = plt.figure(2)
+    # ax2 = fig2.add_subplot(1, 1, 1)
+    # # ax2.plot(neuron_out1, neuron_out2, 'r-', linewidth=1, label='learned')
+    # # ax2.plot(target_neuron1, target_neuron2, 'k--', linewidth=0.5, label='target')
+    # ax2.plot(t, out_behavior, 'r-', linewidth=1, label='learned')
+    # ax2.plot(t, target_behavior, 'k--', linewidth=0.5, label='target')
+    # ax2.legend()
+    # ax2.set_xlabel('Output 1 activity')
+    # ax2.set_ylabel('Output 2 activity')
+    # ax2.set_title('Output')
+    #
+    # plt.show()
+    #
+    # if save:
+    #     out_dir = '/Users/robert/project_src/cooling/single_cpg_manipulation/weights'
+    #     out_suffix1 = 'outunit1_weights_force_w500_5w.npy'
+    #     out_suffix2 = 'outunit2_weights_force_w500_5w.npy'
+    #     out_suffix3 = 'Wrec_weights_force_w500_5w.npy'
+    #     np.save(os.path.join(out_dir, out_suffix1), Wout1)
+    #     np.save(os.path.join(out_dir, out_suffix2), Wout2)
+    #     np.save(os.path.join(out_dir, out_suffix3), Wrec_new)
+
+    # one output, two time scales
+    force_result = nw.simulate_learn_network(behavior, T=t_max)
+    Wout, Wrec_new = force_result
 
     nw_test = rn.Network(N=800, g=1.5, pc=1.0)
     nw_test.Wrec = Wrec_new
     t, rates = nw_test.simulate_network(T=t_max, dt=dt)
 
-    neuron_out1 = np.dot(Wout1, rates)
-    neuron_out2 = np.dot(Wout2, rates)
-    out_behavior = neuron_out1 * neuron_out2 # make 1D behavior with 2 timescales
-    target_neuron1, target_neuron2 = behavior(t)
-    target_behavior = target_neuron1 * target_neuron2
+    neuron_out = np.dot(Wout, rates)
+    # def behavior_step_plot(t):
+    #     t_step = 1000.0
+    #     amp_start = 0.8
+    #     amp_stop = 0.2
+    #     amp_array = np.zeros(t.shape)
+    #     amp_array[np.where(t <= t_step)] = 0.8
+    #     amp_array[np.where(t > t_step)] = 0.2
+    #     return amp_array
+    # def behavior_step_plot(t):
+    #     t_step = 500.0
+    #     amp_start = 0.8
+    #     amp_stop = 0.2
+    #     amp_array = np.zeros(t.shape)
+    #     amp_array[np.where(t <= t_step)] = 0.8
+    #     amp_array[np.where(t > t_step)] = 0.2
+    #     return amp_array
+    # target_neuron = behavior_step_plot(t)
+    target_neuron = behavior(t)
     fig2 = plt.figure(2)
     ax2 = fig2.add_subplot(1, 1, 1)
-    # ax2.plot(neuron_out1, neuron_out2, 'r-', linewidth=1, label='learned')
-    # ax2.plot(target_neuron1, target_neuron2, 'k--', linewidth=0.5, label='target')
-    ax2.plot(t, out_behavior, 'r-', linewidth=1, label='learned')
-    ax2.plot(t, target_behavior, 'k--', linewidth=0.5, label='target')
+    ax2.plot(t, neuron_out, 'r-', linewidth=1, label='learned')
+    ax2.plot(t, target_neuron, 'k--', linewidth=0.5, label='target')
     ax2.legend()
-    ax2.set_xlabel('Output 1 activity')
-    ax2.set_ylabel('Output 2 activity')
-    ax2.set_title('Output')
+    ax2.set_xlabel('Time (ms)')
+    ax2.set_ylabel('Output activity (a.u.)')
 
     plt.show()
 
-    out_dir = '/Users/robert/project_src/cooling/single_cpg_manipulation/weights'
-    out_suffix1 = 'outunit1_weights_force_w500_5w.npy'
-    out_suffix2 = 'outunit2_weights_force_w500_5w.npy'
-    out_suffix3 = 'Wrec_weights_force_w500_5w.npy'
-    np.save(os.path.join(out_dir, out_suffix1), Wout1)
-    np.save(os.path.join(out_dir, out_suffix2), Wout2)
-    np.save(os.path.join(out_dir, out_suffix3), Wrec_new)
-
-    # # one output, two time scales
-    # force_result = nw.simulate_learn_network(behavior, T=t_max)
-    # Wout, Wrec_new = force_result
-    #
-    # nw_test = rn.Network(N=1000, g=1.5, pc=1.0)
-    # nw_test.Wrec = Wrec_new
-    # t, rates = nw_test.simulate_network(T=t_max, dt=dt)
-    #
-    # neuron_out = np.dot(Wout, rates)
-    # target_neuron = behavior(t)
-    # fig2 = plt.figure(2)
-    # ax2 = fig2.add_subplot(1, 1, 1)
-    # ax2.plot(t, neuron_out, 'r-', linewidth=1, label='learned')
-    # ax2.plot(t, target_neuron, 'k--', linewidth=0.5, label='target')
-    # ax2.legend()
-    # ax2.set_xlabel('Time (ms)')
-    # ax2.set_ylabel('Output activity (a.u.)')
-    #
-    # plt.show()
-    #
-    # out_dir = '/Users/robert/project_src/cooling/single_cpg_manipulation'
-    # out_suffix1 = 'outunit_weights_twotimescales_force.npy'
-    # out_suffix2 = 'Wrec_weights_twotimescales_force.npy'
-    # np.save(os.path.join(out_dir, out_suffix1), Wout)
-    # np.save(os.path.join(out_dir, out_suffix2), Wrec_new)
+    if save:
+        out_dir = '/Users/robert/project_src/cooling/single_cpg_manipulation/weights'
+        out_suffix1 = 'outunit_weights_singing_mouse_ramp.npy'
+        out_suffix2 = 'Wrec_weights_singing_mouse_ramp.npy'
+        np.save(os.path.join(out_dir, out_suffix1), Wout)
+        np.save(os.path.join(out_dir, out_suffix2), Wrec_new)
 
 
-def run_output_fit_force_hierarchy():
+def run_output_fit_force_hierarchy(save=False):
     """
     learn weights onto 2 output units to generate target output trajectory
     using FORCE algorithm.
@@ -188,16 +229,17 @@ def run_output_fit_force_hierarchy():
 
     plt.show()
 
-    out_dir = '/Users/robert/project_src/cooling/single_cpg_manipulation/weights'
-    out_suffix1 = 'outunit1_weights_force_w200_2w_input_w200.npy'
-    out_suffix2 = 'outunit2_weights_force_w200_2w_input_w200.npy'
-    out_suffix3 = 'Wrec_weights_force_w200_2w_input_w200.npy'
-    np.save(os.path.join(out_dir, out_suffix1), Wout1)
-    np.save(os.path.join(out_dir, out_suffix2), Wout2)
-    np.save(os.path.join(out_dir, out_suffix3), Wrec_new)
+    if save:
+        out_dir = '/Users/robert/project_src/cooling/single_cpg_manipulation/weights'
+        out_suffix1 = 'outunit1_weights_force_w200_2w_input_w200.npy'
+        out_suffix2 = 'outunit2_weights_force_w200_2w_input_w200.npy'
+        out_suffix3 = 'Wrec_weights_force_w200_2w_input_w200.npy'
+        np.save(os.path.join(out_dir, out_suffix1), Wout1)
+        np.save(os.path.join(out_dir, out_suffix2), Wout2)
+        np.save(os.path.join(out_dir, out_suffix3), Wrec_new)
 
 
-def run_output_fit_force_parallel_networks():
+def run_output_fit_force_parallel_networks(save=False):
     """
     learn weights from 2 recurrent networks onto 2 output units
     (i.e., independent: 1 network controls 1 output) to generate
@@ -249,18 +291,19 @@ def run_output_fit_force_parallel_networks():
 
     plt.show()
 
-    out_dir = '/Users/robert/project_src/cooling/single_cpg_manipulation'
-    out_suffix1 = 'outunit1_parallel_weights_force.npy'
-    out_suffix2 = 'outunit2_parallel_weights_force.npy'
-    out_suffix3 = 'Wrec1_parallel_weights_force.npy'
-    out_suffix4 = 'Wrec2_parallel_weights_force.npy'
-    np.save(os.path.join(out_dir, out_suffix1), Wout1)
-    np.save(os.path.join(out_dir, out_suffix2), Wout2)
-    np.save(os.path.join(out_dir, out_suffix3), Wrec1_new)
-    np.save(os.path.join(out_dir, out_suffix4), Wrec2_new)
+    if save:
+        out_dir = '/Users/robert/project_src/cooling/single_cpg_manipulation'
+        out_suffix1 = 'outunit1_parallel_weights_force.npy'
+        out_suffix2 = 'outunit2_parallel_weights_force.npy'
+        out_suffix3 = 'Wrec1_parallel_weights_force.npy'
+        out_suffix4 = 'Wrec2_parallel_weights_force.npy'
+        np.save(os.path.join(out_dir, out_suffix1), Wout1)
+        np.save(os.path.join(out_dir, out_suffix2), Wout2)
+        np.save(os.path.join(out_dir, out_suffix3), Wrec1_new)
+        np.save(os.path.join(out_dir, out_suffix4), Wrec2_new)
 
 
-def run_output_fit():
+def run_output_fit(save=False):
     """
     fit weights onto 2 output units to generate target output trajectory
     :return: nothing
@@ -318,15 +361,25 @@ def run_output_fit():
 
     plt.show()
 
-    out_dir = '/Users/robert/project_src/cooling/single_cpg_manipulation'
-    out_suffix1 = 'outunit1_weights_circle.npy'
-    out_suffix2 = 'outunit2_weights_circle.npy'
-    np.save(os.path.join(out_dir, out_suffix1), Wout1)
-    np.save(os.path.join(out_dir, out_suffix2), Wout2)
+    if save:
+        out_dir = '/Users/robert/project_src/cooling/single_cpg_manipulation'
+        out_suffix1 = 'outunit1_weights_circle.npy'
+        out_suffix2 = 'outunit2_weights_circle.npy'
+        np.save(os.path.join(out_dir, out_suffix1), Wout1)
+        np.save(os.path.join(out_dir, out_suffix2), Wout2)
 
 
 if __name__ == '__main__':
-    # run_output_fit()
-    # run_output_fit_force()
-    # run_output_fit_force_parallel_networks()
-    run_output_fit_force_hierarchy()
+    parser = ArgumentParser()
+    parser.add_argument('--save', required=True, choices=('y', 'n'),
+                        help='save fitted weights (y/n)')
+
+    args = parser.parse_args()
+    if args.save == 'y':
+        save_weights = True
+    elif args.save == 'n':
+        save_weights = False
+    # run_output_fit(save_weights)
+    run_output_fit_force(save_weights)
+    # run_output_fit_force_parallel_networks(save_weights)
+    # run_output_fit_force_hierarchy(save_weights)
