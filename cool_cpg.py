@@ -16,36 +16,38 @@ def _q(dtemp):
     return q10 ** (dtemp / 10.0)
 
 
-def _lif_behavior(input):
+def _lif_behavior(input, q=1.0):
     """
     simple LIF neuron converting time-varying input to output spiking
     assumes dt = 1.0!
     :param input: external input to LIF neuron (1D array)
-    :return: subthreshold Vm - later could be spike times or EMG?
+    :return: subthreshold Vm, spike times
     """
     n_steps = len(input)
+
     def dvdt(t, v, ext_inp):
-        tau = 100.0
+        tau = 100.0 / q
         r_in = 50.0
         v_rest = 0.0
-        dvdt = 1.0 / tau * (-1.0 * (v - v_rest) + r_in * ext_inp[int(t)])
-        return dvdt
+        dv = 1.0 / tau * (-1.0 * (v - v_rest) + r_in * ext_inp[int(t)])
+        return dv
 
     v_out = np.zeros(input.shape)
+    spike_times = []
     v_threshold = 20.0
     v_reset = -5.0
     # integrate membrane potential
     v_ = 0.0
     for i in range(n_steps):
-        dvdt_ = dvdt(i, v_, input)
-        v_ += dvdt_
+        v_ += dvdt(i, v_, input)
         if v_ >= v_threshold:
             v_out[i] = v_threshold
             v_ = v_reset
+            spike_times.append(i)
         else:
             v_out[i] = v_
 
-    return v_out
+    return v_out, spike_times
 
 
 def cool_single_cpg(mode):
@@ -385,8 +387,8 @@ def cool_cpg_lif_output(mode):
     Wrec = np.load(os.path.join(out_dir, weight_suffix2))
 
     # create network with same parameters
-    # t_max = 2000.0
-    t_max = 1370.0
+    t_max = 2000.0
+    # t_max = 1370.0
     dt = 1.0
     nw = rn.Network(N=800, g=1.5, pc=1.0)
     nw.Wrec = Wrec
@@ -399,8 +401,10 @@ def cool_cpg_lif_output(mode):
     ref_mean = ref_mean_.transpose()
     # ref trajectory: first three PCs (sufficient?)
     pcs, ref_trajectory = rn.compute_neural_trajectory(ref_rates)
-    neuron_out = np.dot(Wout, ref_rates)
-    ref_behavior = _lif_behavior(neuron_out)
+    neuron_out_ = np.dot(Wout, ref_rates)
+    # normalize?
+    neuron_out = neuron_out_ / np.max(neuron_out_)
+    ref_behavior, ref_spikes = _lif_behavior(neuron_out)
 
     fig1 = plt.figure(1)
     ax1 = fig1.add_subplot(1, 2, 1)
@@ -423,8 +427,15 @@ def cool_cpg_lif_output(mode):
     ax2_2.plot(ref_t, ref_behavior, 'k', linewidth=0.5, label='ref LIF')
     ax2_1.set_xlim([0, 4000])
     ax2_2.set_xlim([0, 4000])
+    fig3 = plt.figure(3)
+    ax3_1 = fig3.add_subplot(1, 2, 1)
+    ax3_2 = fig3.add_subplot(1, 2, 2)
+    ax3_1.vlines(ref_spikes, [-0.5] * len(ref_spikes), [0.5] * len(ref_spikes), colors='k', linewidth=0.5)
+    ref_dist = [len(ref_spikes[:i + 1]) for i in range(len(ref_spikes))]
+    ax3_2.step(ref_spikes, ref_dist, color='k', linewidth=0.5)
     cooled_trajectories = []
     cooled_behaviors = []
+    cooled_spikes = []
     for i, dT in enumerate(dT_steps):
         cooled_q = _q(dT)
         cooled_nw = rn.Network(N=800, g=1.5, pc=1.0, q=cooled_q)
@@ -432,9 +443,13 @@ def cool_cpg_lif_output(mode):
         cooled_t, cooled_rates = cooled_nw.simulate_network(T=t_max / cooled_q, dt=dt, external_input=ext_inp)
 
         # behavior = np.array([np.dot(Wout1, cooled_rates), np.dot(Wout2, cooled_rates)])
-        neuron_out_cooled = np.dot(Wout, cooled_rates)
-        behavior_cooled = _lif_behavior(neuron_out_cooled)
+        neuron_out_cooled_ = np.dot(Wout, cooled_rates)
+        # normalize?
+        neuron_out_cooled = neuron_out_cooled_ / np.max(neuron_out_cooled_)
+        # behavior_cooled, spikes_cooled = _lif_behavior(neuron_out_cooled)
+        behavior_cooled, spikes_cooled = _lif_behavior(neuron_out_cooled, cooled_q)
         cooled_behaviors.append(behavior_cooled)
+        cooled_spikes.append(spikes_cooled)
         projected_rates = rn.project_neural_trajectory(cooled_rates, ref_mean, pcs)
         cooled_trajectories.append(projected_rates)
 
@@ -448,6 +463,10 @@ def cool_cpg_lif_output(mode):
         tmp_ax2.plot(cooled_t, behavior_cooled, linewidth=0.5, label=label_str)
         tmp_ax1.set_xlim([0, 4000])
         tmp_ax2.set_xlim([0, 4000])
+        ax3_1.vlines(spikes_cooled, [-0.5 + i + 1] * len(spikes_cooled), [0.5 + i + 1] * len(spikes_cooled),
+                     linewidth=0.5)
+        cooled_dist = [len(spikes_cooled[:i + 1]) for i in range(len(spikes_cooled))]
+        ax3_2.step(spikes_cooled, cooled_dist, linewidth=0.5)
 
     ax1.legend()
     ax1.set_xlabel('PC 1 (a.u.)')
@@ -458,23 +477,33 @@ def cool_cpg_lif_output(mode):
     ax3.legend()
     ax3.set_xlabel('Time (ms)')
     ax3.set_ylabel('LIF output (mV)')
+    ax3_1.set_xlabel('Time (ms)')
+    ax3_2.set_xlabel('Time (ms)')
+    ax3_1.set_ylabel('Spikes')
+    ax3_2.set_ylabel('Steps taken')
 
-    # measure similarity of neural/behavioral trajectories as a function of temperature
-    # trajectory_similarities = []
-    # behavior_similarities = []
-    # for i in range(len(dT_steps)):
-    #     similarity1 = rn.measure_trajectory_similarity(ref_trajectory, cooled_trajectories[i])
-    #     similarity2 = rn.measure_trajectory_similarity(ref_behavior, cooled_behaviors[i])
-    #     trajectory_similarities.append(similarity1)
-    #     behavior_similarities.append(similarity2)
-    # fig4 = plt.figure(4)
-    # ax4 = fig4.add_subplot(1, 1, 1)
-    # ax4.plot(dT_steps, trajectory_similarities, 'ko-', label='neural activity')
-    # ax4.plot(dT_steps, behavior_similarities, 'ro-', label='behavior')
-    # ax4.set_xlim(ax4.get_xlim()[::-1])
-    # ax4.set_xlabel('Temperature change')
-    # ax4.set_ylabel('Corr. coeff.')
-    # ax4.legend()
+    # let's see what changes - behavior duration (here: time between first and last spikes) vs. individual steps taken
+    # (here: individual ISIs)
+    durations = []
+    ISIs = []
+    durations.append(ref_spikes[-1] - ref_spikes[0])
+    ISIs.append(np.diff(ref_spikes))
+    for i in range(len(dT_steps)):
+        tmp_spikes = cooled_spikes[i]
+        durations.append(tmp_spikes[-1] - tmp_spikes[0])
+        ISIs.append(np.diff(tmp_spikes))
+    fig4 = plt.figure(4)
+    ax4 = fig4.add_subplot(1, 1, 1)
+    ref_ISI_mean = np.mean(ISIs[1][np.where(ISIs[1] < 200.0)])
+    for i in range(len(durations)):
+        # ax4.plot([durations[i]] * len(ISIs[i]), ISIs[i], 'o')
+        short_ISIs = ISIs[i][np.where(ISIs[i] < 200.0)]
+        ax4.errorbar(durations[i] / durations[1], np.mean(short_ISIs) / ref_ISI_mean,
+                     np.std(short_ISIs) / ref_ISI_mean, fmt='o')
+    ax4.set_xlabel('Behavior duration (norm.)')
+    ax4.set_ylabel('ISIs (norm.)')
+    ax4.set_ylim([0, 2.5])
+    ax4.set_xlim([0.8, 2.0])
 
     plt.show()
 
